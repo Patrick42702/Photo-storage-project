@@ -10,4 +10,6 @@ include_directories(/usr/include/crow)
 
 # Link additional libraries if necessary (e.g., pthread for multithreading)
 find_package(Threads REQUIRED)
-target_link_libraries(CrowApp PRIVATE Threads::Threads)
+# Specify Boost version
+find_package(Boost 1.70 REQUIRED COMPONENTS filesystem system)
+target_link_libraries(CrowApp PRIVATE Threads::Threads Boost::filesystem Boost::system)
