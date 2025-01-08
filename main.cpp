@@ -1,17 +1,26 @@
 #include "crow.h"
 #include <cstdlib>
 #include <fstream>
+#include <jwt-cpp/traits/kazuho-picojson/defaults.h>
 #include <string>
 #include <filesystem>
 #include <unistd.h>
 #include <unordered_set>
 #include <regex>
 #include <algorithm>
-#include <mysql_driver.h>
 #include <memory>
 #include <random>
 #include <chrono>
-#include <jwt.h>
+#include <optional>
+#include <jwt-cpp/jwt.h>
+#include <mysql_driver.h>
+#include <mysql_connection.h>
+#include <cppconn/driver.h>
+#include <cppconn/exception.h>
+#include <cppconn/resultset.h>
+#include <cppconn/statement.h>
+#include <cppconn/prepared_statement.h>
+#include <bcrypt/BCrypt.hpp>
 
 // Constants
 constexpr size_t MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
@@ -179,9 +188,7 @@ private:
     std::string hashPassword(const std::string& password) {
         // In production, use a proper password hashing library like bcrypt
         // This is a simple example using SHA-256
-        return crow::utility::base64encode(
-            crow::utility::sha256bin(password)
-        );
+        return BCrypt::generateHash(password);
     }
 
 public:

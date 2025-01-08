@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+
 project(CrowApp)
 
 # Add the executable
@@ -13,6 +16,8 @@ include_directories(/usr/include/mysql-cppconn-8)
 find_library(MYSQLCPPCONN_LIBRARY NAMES mysqlcppconn)
 # Find and link jwt
 find_library(JWT NAMES jwt)
+# Find and link bcrypt
+find_library(BCRYPT NAMES bcrypt)
 
 # Provide the path to the library if not found automatically
 if(NOT MYSQLCPPCONN_LIBRARY)
@@ -23,4 +28,4 @@ endif()
 find_package(Threads REQUIRED)
 # Specify Boost version
 find_package(Boost 1.70 REQUIRED COMPONENTS filesystem system)
-target_link_libraries(CrowApp PRIVATE Threads::Threads Boost::filesystem Boost::system ${MYSQLCPPCONN_LIBRARY} ${JWT})
+target_link_libraries(CrowApp PRIVATE Threads::Threads Boost::filesystem Boost::system ${MYSQLCPPCONN_LIBRARY} ${JWT} ${BCRYPT})
