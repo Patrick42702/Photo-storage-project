@@ -1,0 +1,37 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: auth_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: auth_db
+      MYSQL_USER: patrick
+      MYSQL_PASSWORD: "!Password1"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cpp_app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_USER: patrick
+      DB_PASSWORD: "!Password1"
+      DB_NAME: auth_db
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

@@ -1,0 +1,5 @@
+https://github.com/Thalhammer/jwt-cpp jwt library
+https://github.com/CrowCpp/Crow.git crow microframework
+https://github.com/laserpants/dotenv-cpp dotenv library for loading .env file
+mysqlcppconn - install via apt connector to connect to mysql
+https://github.com/trusch/libbcrypt bcrypt library for hashing passwords
