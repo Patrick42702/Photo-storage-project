@@ -1,0 +1,36 @@
+This is the api documentation
+
+* params must be sent in the body of the request
+* response will be in json format
+* if the endpoint has PROTECTED on the first line, a "authorization": "Bearer <token>" header must be present
+
+## /register(POST)
+request Params:
+- username: string
+- email: string
+- password: string
+- dob: string // MUST BE IN (yyyy-mm-dd) format
+response:
+- success: boolean
+- message: string
+
+## /login(POST)
+request Params:
+- username: string
+- email: string
+- password: string
+- dob: string (yyyy-mm-dd)
+response:
+- status: boolean
+- message: string
+- token: string // client must save this token (as a cookie easiest) and send it in the authorization header for every protected endpoint
+
+## /photos(POST) PROTECTED
+request Params: None
+response:
+- photos: array of strings representing photo filenames that the user has uploaded
+
+## /media/<filename>(GET) PROTECTED
+request Params: None
+response:
+- the photo file, in the body
