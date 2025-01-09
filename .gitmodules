@@ -1,0 +1,12 @@
+[submodule "libs/jwt-cpp"]
+	path = libs/jwt-cpp
+	url = https://github.com/Thalhammer/jwt-cpp
+[submodule "libs/Crow"]
+	path = libs/Crow
+	url = https://github.com/CrowCpp/Crow
+[submodule "libs/dotenv-cpp"]
+	path = libs/dotenv-cpp
+	url = https://github.com/laserpants/dotenv-cpp
+[submodule "libs/libbcrypt"]
+	path = libs/libbcrypt
+	url = https://github.com/trusch/libbcrypt
