@@ -29,12 +29,18 @@ add_subdirectory(libs/libbcrypt)
 add_subdirectory(libs/jwt-cpp)
 add_subdirectory(libs/Crow)
 add_subdirectory(libs/dotenv-cpp)
-# add_subdirectory(libs/mysql-connector-cpp)
+
+# Add include directories for all libraries
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/libbcrypt/include  # for bcrypt headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/jwt-cpp/include    # for jwt-cpp headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/Crow/include      # for Crow headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/dotenv-cpp/include # for dotenv headers
+)
+
 
 # Link additional libraries if necessary (e.g., pthread for multithreading)
 find_package(Threads REQUIRED)
-# target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads ${MYSQLCPPCONN_LIBRARY} ${BCRYPT} ${JWT} ${CRYPTO} laserpants::dotenv)
-# find_package(laserpants_dotenv REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     Threads::Threads
     bcrypt

@@ -1,4 +1,5 @@
 #include "crow.h"
+#include "crow/app.h"
 #include <cstdlib>
 #include <fstream>
 #include <string>
@@ -21,7 +22,7 @@
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
 #include <bcrypt/BCrypt.hpp>
-#include <laserpants/dotenv-0.9.3/dotenv.h>
+#include <laserpants/dotenv/dotenv.h>
 
 // Constants
 constexpr size_t MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
@@ -80,7 +81,6 @@ public:
 // Forward declarations
 class DatabaseManager;
 class AuthManager;
-class SessionManager;
 
 // User model
 struct User {
@@ -118,13 +118,13 @@ public:
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 ")"
             );
-
-            // Create sessions table if it doesn't exist
             stmt->execute(
-                "CREATE TABLE IF NOT EXISTS sessions ("
-                "id VARCHAR(64) PRIMARY KEY,"
+                "CREATE TABLE IF NOT EXISTS photos ("
+                "id INT AUTO_INCREMENT PRIMARY KEY,"
                 "user_id INT NOT NULL,"
-                "expires_at TIMESTAMP NOT NULL,"
+                "filename VARCHAR(255) NOT NULL,"
+                "size INT NOT NULL,"
+                "uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
                 "FOREIGN KEY (user_id) REFERENCES users(id)"
                 ")"
             );
@@ -133,84 +133,6 @@ public:
             throw;
         }
     }
-
-    std::string createSession(int userId) {
-        try {
-            // Generate a random session ID
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, 15);
-
-            std::stringstream ss;
-            for (int i = 0; i < 32; i++) {
-                ss << std::hex << dis(gen);
-            }
-            std::string sessionId = ss.str();
-
-            // Calculate expiration time (24 hours from now)
-            auto now = std::chrono::system_clock::now();
-            auto expiry = now + std::chrono::hours(24);
-            auto expiry_time_t = std::chrono::system_clock::to_time_t(expiry);
-
-            std::stringstream timeStr;
-            timeStr << std::put_time(std::localtime(&expiry_time_t), "%Y-%m-%d %H:%M:%S");
-
-            // Create the session in database
-            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)"
-            ));
-
-            stmt->setString(1, sessionId);
-            stmt->setInt(2, userId);
-            stmt->setString(3, timeStr.str());
-
-            stmt->executeUpdate();
-
-            return sessionId;
-        } catch (sql::SQLException &e) {
-            std::cerr << "SQL Error in createSession: " << e.what() << std::endl;
-            throw;
-        }
-    }
-
-    bool validateSession(const std::string& sessionId) {
-        try {
-            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "SELECT * FROM sessions WHERE id = ? AND expires_at > NOW()"
-            ));
-
-            stmt->setString(1, sessionId);
-            std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
-
-            return res->next();
-        } catch (sql::SQLException &e) {
-            std::cerr << "SQL Error in validateSession: " << e.what() << std::endl;
-            return false;
-        }
-    }
-
-    void deleteSession(const std::string& sessionId) {
-        try {
-            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "DELETE FROM sessions WHERE id = ?"
-            ));
-
-            stmt->setString(1, sessionId);
-            stmt->executeUpdate();
-        } catch (sql::SQLException &e) {
-            std::cerr << "SQL Error in deleteSession: " << e.what() << std::endl;
-        }
-    }
-
-    void cleanExpiredSessions() {
-        try {
-            std::unique_ptr<sql::Statement> stmt(conn->createStatement());
-            stmt->execute("DELETE FROM sessions WHERE expires_at <= NOW()");
-        } catch (sql::SQLException &e) {
-            std::cerr << "SQL Error in cleanExpiredSessions: " << e.what() << std::endl;
-        }
-    }
-
 
     bool createUser(const User& user) {
         try {
@@ -256,14 +178,67 @@ public:
             return std::nullopt;
         }
     }
+
+    bool createPhoto(int user_id, const std::string& filename, int size) {
+        try {
+            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
+                "INSERT INTO photos (user_id, filename, size) VALUES (?, ?, ?)"
+            ));
+
+            stmt->setInt(1, user_id);
+            stmt->setString(2, filename);
+            stmt->setInt(3, size);
+
+            return stmt->executeUpdate() > 0;
+        } catch (sql::SQLException &e) {
+            std::cerr << "SQL Error: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    bool verifyPhoto(int user_id, const std::string& filename) {
+        try {
+            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
+                "SELECT filename FROM photos WHERE user_id = ? AND user_id = ?"
+            ));
+            stmt->setInt(1, user_id);
+
+            std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+            if (res->next()) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (sql::SQLException &e) {
+            std::cerr << "SQL Error: " << e.what() << std::endl;
+        }
+        return "";
+    }
+
+    std::vector<std::string> getPhotosByUserId(int user_id) {
+        std::vector<std::string> photos;
+        try {
+            std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
+                "SELECT filename FROM photos WHERE user_id = ?"
+            ));
+            stmt->setInt(1, user_id);
+
+            std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+            while (res->next()) {
+                photos.push_back(res->getString("filename"));
+            }
+        } catch (sql::SQLException &e) {
+            std::cerr << "SQL Error: " << e.what() << std::endl;
+        }
+        return photos;
+    }
 };
 
 // Authentication manager to handle user operations
 class AuthManager {
 private:
     DatabaseManager& db;
-    // const std::string jwt_secret = std::getenv("SECRET_KEY"); // Change this in production!
-    const std::string jwt_secret = "my secret"; // Change this in production!
+    const std::string jwt_secret = std::getenv("SECRET_KEY"); // Change this in production!
 
     std::string hashPassword(const std::string& password) {
         // In production, use a proper password hashing library like bcrypt
@@ -276,7 +251,7 @@ public:
 
     struct LoginResult {
         bool success;
-        std::string sessionId;
+        std::string token;
         std::string message;
     };
 
@@ -287,6 +262,7 @@ public:
             .set_issued_at(std::chrono::system_clock::now())
             .set_expires_at(std::chrono::system_clock::now() + std::chrono::hours(24))
             .set_payload_claim("user_id", jwt::claim(std::to_string(user.id)))
+            .set_payload_claim("email", jwt::claim(user.email))
             .sign(jwt::algorithm::hs256{jwt_secret});
         return token;
     }
@@ -321,21 +297,12 @@ public:
             auto user = db.getUserByEmail(email);
             if (!user) return {false, "", "Invalid credentials"};
             if (BCrypt::validatePassword(password, user->password_hash)) {
-                std::string sessionId = db.createSession(user->id);
-                return {true, sessionId, "Login successful"};
+                std::string token = generateToken(*user);
+                return {true, token, "Login successful"};
             }
             return {false, "", "Invalid credentials"};
         } catch (const std::exception& e) {
             return {false, "", "login failed: " + std::string(e.what())};
-        }
-    }
-
-    bool logoutUser(const std::string& sessionId) {
-        try {
-            db.deleteSession(sessionId);
-            return true;
-        } catch (const std::exception& e) {
-            return false;
         }
     }
 };
@@ -346,14 +313,15 @@ struct AuthMiddleware {
 
     AuthMiddleware(AuthManager& am) : auth_manager(am) {}
 
-    struct context {};
+    struct context {
+        std::string user_id;
+        std::string email;
+    };
 
     void before_handle(crow::request& req, crow::response& res, context& ctx) {
-        // Only protect specific routes
-        static const std::unordered_set<std::string> protected_routes = {"/upload"};
-
+        static const std::unordered_set<std::string> protected_routes = {"/upload", "/photos"};
         if (protected_routes.find(req.url) == protected_routes.end()) {
-            return; // Skip middleware for unprotected routes
+            return;
         }
 
         auto auth_header = req.get_header_value("Authorization");
@@ -364,12 +332,24 @@ struct AuthMiddleware {
         }
 
         std::string token = auth_header.substr(7);
-        if (!auth_manager.verifyToken(token)) {
+        try {
+            auto decoded = jwt::decode(token);
+            if (!auth_manager.verifyToken(token)) {
+                res.code = 401;
+                res.end();
+                return;
+            }
+
+            // Store user information in context
+            ctx.user_id = decoded.get_payload_claim("user_id").as_string();
+            ctx.email = decoded.get_payload_claim("email").as_string();
+        } catch (const std::exception&) {
             res.code = 401;
             res.end();
             return;
         }
     }
+
     void after_handle(crow::request& req, crow::response& res, context& ctx) {
         // Additional post-processing if needed
     }
@@ -381,7 +361,7 @@ int main() {
     auto username = std::getenv("DB_USER");
     auto password = std::getenv("DB_PASSWORD");
     auto database = std::getenv("DB_NAME");
-    DatabaseManager db("localhost", username, password, database);
+    DatabaseManager db("127.0.0.1", username, password, database);
     AuthManager auth_manager(db);
 
     // Initialize Crow app with middleware
@@ -427,17 +407,12 @@ int main() {
 
                 auto loginResult = auth_manager.loginUser(email, password);
                 if (loginResult.success) {
-                    crow::response resp = crow::response(200);
-                    resp.add_header("Set-Cookie", "session=" + loginResult.sessionId + "; HttpOnly; Path=/; Max-Age=86400");
-
-                // Also return the session ID in the response body
-                crow::json::wvalue response_body({
-                    {"status", "success"},
-                    {"message", loginResult.message},
-                    {"sessionId", loginResult.sessionId}
-                });
-                resp.write(response_body.dump());
-                return resp;
+                    crow::json::wvalue response_body({
+                        {"status", "success"},
+                        {"message", loginResult.message},
+                        {"token", loginResult.token}
+                    });
+                    return crow::response(200, response_body);
                 } else {
                     return crow::response(401, "Invalid credentials");
                 }
@@ -446,39 +421,13 @@ int main() {
             }
         });
 
-    // Add a logout endpoint
-    CROW_ROUTE(app, "/logout")
-        .methods("POST"_method)
-        ([&](const crow::request& req) {
-            // Get session ID from cookie
-            auto cookie = req.get_header_value("Cookie");
-            size_t sessionStart = cookie.find("session=");
-            if (sessionStart == std::string::npos) {
-                return crow::response(401, "No session found");
-            }
-
-            sessionStart += 8; // length of "session="
-            size_t sessionEnd = cookie.find(";", sessionStart);
-            std::string sessionId = cookie.substr(sessionStart, 
-                                                  sessionEnd == std::string::npos ? std::string::npos : sessionEnd - sessionStart);
-
-            if (auth_manager.logoutUser(sessionId)) {
-                crow::response resp = crow::response(200, "Logged out successfully");
-                // Clear the session cookie
-                resp.add_header("Set-Cookie", 
-                                "session=; HttpOnly; Path=/; Max-Age=0");
-                return resp;
-            } else {
-                return crow::response(500, "Logout failed");
-            }
-        });
-
     // Endpoint to handle file uploads
     CROW_ROUTE(app, "/upload")
         .methods("POST"_method)
-        .middlewares<AuthMiddleware>()  // Apply authentication middleware
-        ([](const crow::request& req) {
+        ([&app, &db](const crow::request& req) {
             try {
+                auto& ctx = app.get_context<AuthMiddleware>(req);
+
                 // Verify content type
                 std::string content_type = req.get_header_value("Content-Type");
                 if (content_type.find("multipart/form-data") == std::string::npos) {
@@ -549,6 +498,8 @@ int main() {
                 file.write(body.data() + content_start, content_end - content_start);
                 file.close();
 
+                db.createPhoto(std::stoi(ctx.user_id), secure_filename, file_size);
+
                 // Prepare success response with details
                 crow::json::wvalue response_data({
                     {"status", "success"},
@@ -564,6 +515,47 @@ int main() {
                 return crow::response(500, std::string("Server error: ") + e.what());
             }
         });
+
+        CROW_ROUTE(app, "/photos")
+        .methods("POST"_method)
+        ([&app, &db](const crow::request& req) {
+            auto& ctx = app.get_context<AuthMiddleware>(req);
+            auto photos = db.getPhotosByUserId(std::stoi(ctx.user_id));
+
+            crow::json::wvalue response_data;
+            response_data["photos"] = crow::json::wvalue();
+            // Convert the vector to a JSON array
+            response_data["photos"] = (photos);
+
+            return crow::response(200, response_data);
+        });
+
+    CROW_ROUTE(app, "/media/<string>")
+        ([&app, &db](const crow::request& req, std::string filename) {
+            // Get user ID from the middleware context
+            auto& ctx = app.get_context<AuthMiddleware>(req);
+            int user_id = std::stoi(ctx.user_id);
+
+            // Verify that the user owns the photo
+            if (!db.verifyPhoto(user_id, filename)) {
+                return crow::response(403, "Forbidden");
+            }
+
+            // File path (adjust the base directory as needed)
+            std::string file_path = "uploads" + filename;
+
+            crow::response res;
+            // Read the file
+            std::ifstream file(file_path, std::ios::binary);
+            if (!file.is_open()) {
+                res.code = 404; // Not Found
+                res.write("File not found.");
+                res.end();
+                return res;
+            }
+
+        });
+
 
     // Start the server
     app.port(8080).run();
