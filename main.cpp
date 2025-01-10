@@ -100,8 +100,8 @@ private:
     std::unique_ptr<sql::Connection> conn;
 
 public:
-    DatabaseManager(const std::string& host, const std::string& user, 
-                   const std::string& password, const std::string& database) {
+    DatabaseManager(const std::string& host, const std::string& user,
+                    const std::string& password, const std::string& database) {
         try {
             driver.reset(sql::mysql::get_mysql_driver_instance());
             conn.reset(driver->connect(host, user, password));
@@ -138,9 +138,9 @@ public:
     bool createUser(const User& user) {
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "INSERT INTO users (username, email, password_hash, date_of_birth) "
-                "VALUES (?, ?, ?, ?)"
-            ));
+                        "INSERT INTO users (username, email, password_hash, date_of_birth) "
+                        "VALUES (?, ?, ?, ?)"
+                    ));
 
             stmt->setString(1, user.username);
             stmt->setString(2, user.email);
@@ -157,8 +157,8 @@ public:
     std::optional<User> getUserByEmail(const std::string& email) {
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "SELECT * FROM users WHERE email = ?"
-            ));
+                        "SELECT * FROM users WHERE email = ?"
+                    ));
             stmt->setString(1, email);
 
             std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
@@ -183,8 +183,8 @@ public:
     bool createPhoto(int user_id, const std::string& filename, int size) {
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "INSERT INTO photos (user_id, filename, size) VALUES (?, ?, ?)"
-            ));
+                        "INSERT INTO photos (user_id, filename, size) VALUES (?, ?, ?)"
+                    ));
 
             stmt->setInt(1, user_id);
             stmt->setString(2, filename);
@@ -200,8 +200,8 @@ public:
     bool verifyPhoto(int user_id, const std::string& filename) {
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "SELECT filename FROM photos WHERE user_id = ? AND user_id = ?"
-            ));
+                        "SELECT filename FROM photos WHERE user_id = ? AND user_id = ?"
+                    ));
             stmt->setInt(1, user_id);
 
             std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
@@ -220,8 +220,8 @@ public:
         std::vector<std::string> photos;
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                "SELECT filename FROM photos WHERE user_id = ?"
-            ));
+                        "SELECT filename FROM photos WHERE user_id = ?"
+                    ));
             stmt->setInt(1, user_id);
 
             std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
@@ -258,13 +258,13 @@ public:
 
     std::string generateToken(const User& user) {
         auto token = jwt::create()
-            .set_issuer("auth_service")
-            .set_type("JWS")
-            .set_issued_at(std::chrono::system_clock::now())
-            .set_expires_at(std::chrono::system_clock::now() + std::chrono::hours(24))
-            .set_payload_claim("user_id", jwt::claim(std::to_string(user.id)))
-            .set_payload_claim("email", jwt::claim(user.email))
-            .sign(jwt::algorithm::hs256{jwt_secret});
+                     .set_issuer("auth_service")
+                     .set_type("JWS")
+                     .set_issued_at(std::chrono::system_clock::now())
+                     .set_expires_at(std::chrono::system_clock::now() + std::chrono::hours(24))
+                     .set_payload_claim("user_id", jwt::claim(std::to_string(user.id)))
+                     .set_payload_claim("email", jwt::claim(user.email))
+                     .sign(jwt::algorithm::hs256{jwt_secret});
         return token;
     }
 
@@ -272,8 +272,8 @@ public:
         try {
             auto decoded = jwt::decode(token);
             auto verifier = jwt::verify()
-                .allow_algorithm(jwt::algorithm::hs256{jwt_secret})
-                .with_issuer("auth_service");
+                            .allow_algorithm(jwt::algorithm::hs256{jwt_secret})
+                            .with_issuer("auth_service");
             verifier.verify(decoded);
             return true;
         } catch (const std::exception&) {
@@ -282,7 +282,7 @@ public:
     }
 
     bool registerUser(const std::string& username, const std::string& email,
-                     const std::string& password, const std::string& dob) {
+                      const std::string& password, const std::string& dob) {
         User user;
         user.username = username;
         user.email = email;
@@ -292,9 +292,9 @@ public:
         return db.createUser(user);
     }
 
-    LoginResult loginUser(const std::string& email, 
+    LoginResult loginUser(const std::string& email,
                           const std::string& password) {
-        try{
+        try {
             auto user = db.getUserByEmail(email);
             if (!user) return {false, "", "Invalid credentials"};
             if (BCrypt::validatePassword(password, user->password_hash)) {
@@ -324,7 +324,9 @@ struct AuthMiddleware {
         bool is_protected = false;
 
         // Check if the URL starts with any of the protected route prefixes
-        for (const auto& route : {"/upload", "/photos", "/media"}) {
+        for (const auto& route : {
+                    "/upload", "/photos", "/media"
+                }) {
             if (url.starts_with(route)) {
                 is_protected = true;
                 break;
@@ -380,162 +382,162 @@ int main() {
 
     // Registration endpoint
     CROW_ROUTE(app, "/register")
-        .methods("POST"_method)
-        ([&](const crow::request& req) {
-            auto body = crow::json::load(req.body);
-            if (!body) {
-                return crow::response(400, "Invalid JSON");
-            }
+    .methods("POST"_method)
+    ([&](const crow::request& req) {
+        auto body = crow::json::load(req.body);
+        if (!body) {
+            return crow::response(400, "Invalid JSON");
+        }
 
-            try {
-                std::string username = body["username"].s();
-                std::string email = body["email"].s();
-                std::string password = body["password"].s();
-                std::string dob = body["dob"].s();
+        try {
+            std::string username = body["username"].s();
+            std::string email = body["email"].s();
+            std::string password = body["password"].s();
+            std::string dob = body["dob"].s();
 
-                if (auth_manager.registerUser(username, email, password, dob)) {
-                    // Prepare success response with details
-                    crow::json::wvalue response_data({
-                        {"status", "success"},
-                        {"message", "user registered successfully"},
-                    });
-                    return crow::response(200, response_data);
-                } else {
-                    return crow::response(400, "Failed to register user, possibly due to duplicate credentials");
-                }
-            } catch (const std::exception&) {
-                return crow::response(400, "Invalid request data");
-            }
-        });
-
-    // Login endpoint
-    CROW_ROUTE(app, "/login")
-        .methods("POST"_method)
-        ([&](const crow::request& req) {
-            auto body = crow::json::load(req.body);
-            if (!body) {
-                return crow::response(400, "Invalid JSON");
-            }
-
-            try {
-                std::string email = body["email"].s();
-                std::string password = body["password"].s();
-
-                auto loginResult = auth_manager.loginUser(email, password);
-                if (loginResult.success) {
-                    crow::json::wvalue response_body({
-                        {"status", "success"},
-                        {"message", loginResult.message},
-                        {"token", loginResult.token}
-                    });
-                    return crow::response(200, response_body);
-                } else {
-                    return crow::response(401, "Invalid credentials");
-                }
-            } catch (const std::exception&) {
-                return crow::response(400, "Invalid request data");
-            }
-        });
-
-    // Endpoint to handle file uploads
-    CROW_ROUTE(app, "/upload")
-        .methods("POST"_method)
-        ([&app, &db](const crow::request& req) {
-            try {
-                auto& ctx = app.get_context<AuthMiddleware>(req);
-
-                // Verify content type
-                std::string content_type = req.get_header_value("Content-Type");
-                if (content_type.find("multipart/form-data") == std::string::npos) {
-                    return crow::response(400, "Invalid Content-Type. Must be multipart/form-data");
-                }
-
-                // Extract boundary
-                size_t boundary_pos = content_type.find("boundary=");
-                if (boundary_pos == std::string::npos) {
-                    return crow::response(400, "No boundary found in multipart/form-data");
-                }
-                std::string boundary = content_type.substr(boundary_pos + 9);
-
-                // Get request body
-                auto& body = req.body;
-
-                // Check file size
-                if (body.length() > MAX_FILE_SIZE) {
-                    return crow::response(413, "File too large. Maximum size is 50MB");
-                }
-
-                // Find and extract filename
-                size_t file_start = body.find("filename=");
-                if (file_start == std::string::npos) {
-                    return crow::response(400, "No file found in request");
-                }
-
-                file_start = body.find("\"", file_start) + 1;
-                size_t file_end = body.find("\"", file_start);
-                std::string original_filename = body.substr(file_start, file_end - file_start);
-
-                // Validate file type
-                if (!FileUploadHelper::isAllowedFileType(original_filename)) {
-                    return crow::response(415, "File type not allowed. Allowed types: jpg, jpeg, png, gif");
-                }
-
-                // Generate secure filename
-                std::string secure_filename = FileUploadHelper::generateUniqueFilename(original_filename);
-
-                // Find file content
-                size_t content_start = body.find("\r\n\r\n", file_end) + 4;
-                if (content_start == std::string::npos) {
-                    return crow::response(400, "Malformed request: couldn't find file content");
-                }
-
-                size_t content_end = body.find(boundary, content_start);
-                if (content_end == std::string::npos) {
-                    return crow::response(400, "Malformed request: couldn't find content boundary");
-                }
-                content_end -= 2; // Remove \r\n before boundary
-
-                // Verify actual file content size
-                size_t file_size = content_end - content_start;
-                if (file_size > MAX_FILE_SIZE) {
-                    return crow::response(413, "File too large. Maximum size is 50MB");
-                }
-
-                // Create uploads directory
-                std::filesystem::create_directory("uploads");
-
-                // Save file
-                std::string filepath = "uploads/" + secure_filename;
-                std::ofstream file(filepath, std::ios::binary);
-                if (!file) {
-                    return crow::response(500, "Failed to create file");
-                }
-
-                file.write(body.data() + content_start, content_end - content_start);
-                file.close();
-
-                db.createPhoto(std::stoi(ctx.user_id), secure_filename, file_size);
-
+            if (auth_manager.registerUser(username, email, password, dob)) {
                 // Prepare success response with details
                 crow::json::wvalue response_data({
                     {"status", "success"},
-                    {"message", "File uploaded successfully"},
-                    {"original_filename", original_filename},
-                    {"saved_filename", secure_filename},
-                    {"size", file_size}
+                    {"message", "user registered successfully"},
                 });
-
                 return crow::response(200, response_data);
+            } else {
+                return crow::response(400, "Failed to register user, possibly due to duplicate credentials");
             }
-            catch (const std::exception& e) {
-                return crow::response(500, std::string("Server error: ") + e.what());
-            }
-        });
+        } catch (const std::exception&) {
+            return crow::response(400, "Invalid request data");
+        }
+    });
 
-        CROW_ROUTE(app, "/photos")
-        .methods("POST"_method)
-        ([&app, &db](const crow::request& req) {
-            try {
+    // Login endpoint
+    CROW_ROUTE(app, "/login")
+    .methods("POST"_method)
+    ([&](const crow::request& req) {
+        auto body = crow::json::load(req.body);
+        if (!body) {
+            return crow::response(400, "Invalid JSON");
+        }
+
+        try {
+            std::string email = body["email"].s();
+            std::string password = body["password"].s();
+
+            auto loginResult = auth_manager.loginUser(email, password);
+            if (loginResult.success) {
+                crow::json::wvalue response_body({
+                    {"status", "success"},
+                    {"message", loginResult.message},
+                    {"token", loginResult.token}
+                });
+                return crow::response(200, response_body);
+            } else {
+                return crow::response(401, "Invalid credentials");
+            }
+        } catch (const std::exception&) {
+            return crow::response(400, "Invalid request data");
+        }
+    });
+
+    // Endpoint to handle file uploads
+    CROW_ROUTE(app, "/upload")
+    .methods("POST"_method)
+    ([&app, &db](const crow::request& req) {
+        try {
+            auto& ctx = app.get_context<AuthMiddleware>(req);
+
+            // Verify content type
+            std::string content_type = req.get_header_value("Content-Type");
+            if (content_type.find("multipart/form-data") == std::string::npos) {
+                return crow::response(400, "Invalid Content-Type. Must be multipart/form-data");
+            }
+
+            // Extract boundary
+            size_t boundary_pos = content_type.find("boundary=");
+            if (boundary_pos == std::string::npos) {
+                return crow::response(400, "No boundary found in multipart/form-data");
+            }
+            std::string boundary = content_type.substr(boundary_pos + 9);
+
+            // Get request body
+            auto& body = req.body;
+
+            // Check file size
+            if (body.length() > MAX_FILE_SIZE) {
+                return crow::response(413, "File too large. Maximum size is 50MB");
+            }
+
+            // Find and extract filename
+            size_t file_start = body.find("filename=");
+            if (file_start == std::string::npos) {
+                return crow::response(400, "No file found in request");
+            }
+
+            file_start = body.find("\"", file_start) + 1;
+            size_t file_end = body.find("\"", file_start);
+            std::string original_filename = body.substr(file_start, file_end - file_start);
+
+            // Validate file type
+            if (!FileUploadHelper::isAllowedFileType(original_filename)) {
+                return crow::response(415, "File type not allowed. Allowed types: jpg, jpeg, png, gif");
+            }
+
+            // Generate secure filename
+            std::string secure_filename = FileUploadHelper::generateUniqueFilename(original_filename);
+
+            // Find file content
+            size_t content_start = body.find("\r\n\r\n", file_end) + 4;
+            if (content_start == std::string::npos) {
+                return crow::response(400, "Malformed request: couldn't find file content");
+            }
+
+            size_t content_end = body.find(boundary, content_start);
+            if (content_end == std::string::npos) {
+                return crow::response(400, "Malformed request: couldn't find content boundary");
+            }
+            content_end -= 2; // Remove \r\n before boundary
+
+            // Verify actual file content size
+            size_t file_size = content_end - content_start;
+            if (file_size > MAX_FILE_SIZE) {
+                return crow::response(413, "File too large. Maximum size is 50MB");
+            }
+
+            // Create uploads directory
+            std::filesystem::create_directory("uploads");
+
+            // Save file
+            std::string filepath = "uploads/" + secure_filename;
+            std::ofstream file(filepath, std::ios::binary);
+            if (!file) {
+                return crow::response(500, "Failed to create file");
+            }
+
+            file.write(body.data() + content_start, content_end - content_start);
+            file.close();
+
+            db.createPhoto(std::stoi(ctx.user_id), secure_filename, file_size);
+
+            // Prepare success response with details
+            crow::json::wvalue response_data({
+                {"status", "success"},
+                {"message", "File uploaded successfully"},
+                {"original_filename", original_filename},
+                {"saved_filename", secure_filename},
+                {"size", file_size}
+            });
+
+            return crow::response(200, response_data);
+        }
+        catch (const std::exception& e) {
+            return crow::response(500, std::string("Server error: ") + e.what());
+        }
+    });
+
+    CROW_ROUTE(app, "/photos")
+    .methods("POST"_method)
+    ([&app, &db](const crow::request& req) {
+        try {
             auto& ctx = app.get_context<AuthMiddleware>(req);
             CROW_LOG_INFO << "User ID: " << ctx.user_id;
             auto photos = db.getPhotosByUserId(std::stoi(ctx.user_id));
@@ -549,62 +551,62 @@ int main() {
             response_data["message"] = "Photos retrieved successfully";
 
             return crow::response(200, response_data);
-            } catch (const std::exception& e) {
-                return crow::response(500, std::string("Server error: ") + e.what());
-            }
-        });
+        } catch (const std::exception& e) {
+            return crow::response(500, std::string("Server error: ") + e.what());
+        }
+    });
 
     CROW_ROUTE(app, "/media/<string>")
-        .methods("GET"_method)
-        ([&app, &db](const crow::request& req, std::string filename) {
-    try {
-        // Sanitize filename for security
-        filename = FileUploadHelper::sanitizeFilename(filename);
+    .methods("GET"_method)
+    ([&app, &db](const crow::request& req, std::string filename) {
+        try {
+            // Sanitize filename for security
+            filename = FileUploadHelper::sanitizeFilename(filename);
 
-        // Get user ID from the middleware context
-        auto& ctx = app.get_context<AuthMiddleware>(req);
-        int user_id = std::stoi(ctx.user_id);
+            // Get user ID from the middleware context
+            auto& ctx = app.get_context<AuthMiddleware>(req);
+            int user_id = std::stoi(ctx.user_id);
 
-        // Verify that the user owns the photo
-        if (!db.verifyPhoto(user_id, filename)) {
-            return crow::response(403, "Access denied");
+            // Verify that the user owns the photo
+            if (!db.verifyPhoto(user_id, filename)) {
+                return crow::response(403, "Access denied");
+            }
+
+            // File path
+            std::string file_path = "uploads/" + filename;
+
+            // Check if file exists
+            if (!std::filesystem::exists(file_path)) {
+                return crow::response(404, "File not found");
+            }
+
+            // Get file size
+            std::uintmax_t size = std::filesystem::file_size(file_path);
+            CROW_LOG_INFO << "File size: " << size;
+
+            // Read the file
+            std::ifstream file(file_path, std::ios::binary);
+            if (!file.is_open()) {
+                return crow::response(500, "Failed to open file");
+            }
+
+            // Create response
+            crow::response res;
+            res.set_header("Content-Type", "image/" + FileUploadHelper::getFileExtension(filename).substr(1));
+            res.set_header("Content-Length", std::to_string(size));
+
+            // Read file content
+            std::vector<char> buffer(size);
+            file.read(buffer.data(), size);
+
+            res.body = std::string(buffer.data(), size);
+            return res;
+
+        } catch (const std::exception& e) {
+            CROW_LOG_ERROR << "Error in /media endpoint: " << e.what();
+            return crow::response(500, "Internal server error");
         }
-
-        // File path
-        std::string file_path = "uploads/" + filename;
-
-        // Check if file exists
-        if (!std::filesystem::exists(file_path)) {
-            return crow::response(404, "File not found");
-        }
-
-        // Get file size
-        std::uintmax_t size = std::filesystem::file_size(file_path);
-        CROW_LOG_INFO << "File size: " << size;
-
-        // Read the file
-        std::ifstream file(file_path, std::ios::binary);
-        if (!file.is_open()) {
-            return crow::response(500, "Failed to open file");
-        }
-
-        // Create response
-        crow::response res;
-        res.set_header("Content-Type", "image/" + FileUploadHelper::getFileExtension(filename).substr(1));
-        res.set_header("Content-Length", std::to_string(size));
-
-        // Read file content
-        std::vector<char> buffer(size);
-        file.read(buffer.data(), size);
-
-        res.body = std::string(buffer.data(), size);
-        return res;
-
-    } catch (const std::exception& e) {
-        CROW_LOG_ERROR << "Error in /media endpoint: " << e.what();
-        return crow::response(500, "Internal server error");
-    }
-});
+    });
 
 
     // Start the server
