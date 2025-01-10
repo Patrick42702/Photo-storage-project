@@ -98,6 +98,7 @@ struct User {
     std::string password_hash;
     std::string date_of_birth;
     std::string created_at;
+    bool verified;
 };
 
 // Database manager to handle MySQL operations
@@ -123,6 +124,7 @@ public:
                 "email VARCHAR(100) UNIQUE NOT NULL,"
                 "password_hash VARCHAR(255) NOT NULL,"
                 "date_of_birth DATE NOT NULL,"
+                "verified BOOLEAN DEFAULT TRUE,"
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 ")"
             );
@@ -147,14 +149,15 @@ public:
     bool createUser(const User& user) {
         try {
             std::unique_ptr<sql::PreparedStatement> stmt(conn->prepareStatement(
-                        "INSERT INTO users (username, email, password_hash, date_of_birth) "
-                        "VALUES (?, ?, ?, ?)"
+                        "INSERT INTO users (username, email, password_hash, date_of_birth, verified) "
+                        "VALUES (?, ?, ?, ?, ?)"
                     ));
 
             stmt->setString(1, user.username);
             stmt->setString(2, user.email);
             stmt->setString(3, user.password_hash);
             stmt->setString(4, user.date_of_birth);
+            stmt->setBoolean(5, user.verified);
 
             return stmt->executeUpdate() > 0;
         } catch (sql::SQLException &e) {
@@ -179,6 +182,7 @@ public:
                 user.email = res->getString("email");
                 user.password_hash = res->getString("password_hash");
                 user.date_of_birth = res->getString("date_of_birth");
+                user.verified = res->getBoolean("verified");
                 user.created_at = res->getString("created_at");
                 return user;
             }
@@ -299,6 +303,7 @@ public:
         user.email = email;
         user.password_hash = hashPassword(password);
         user.date_of_birth = dob;
+        user.verified = false;
 
         return db.createUser(user);
     }
@@ -308,7 +313,7 @@ public:
         try {
             auto user = db.getUserByEmail(email);
             if (!user) return {false, "", "Invalid credentials"};
-            if (BCrypt::validatePassword(password, user->password_hash)) {
+            if (BCrypt::validatePassword(password, user->password_hash) && user->verified) {
                 std::string token = generateToken(*user);
                 return {true, token, "Login successful"};
             }
@@ -466,6 +471,7 @@ struct AuthMiddleware {
         auto auth_header = req.get_header_value("Authorization");
         if (auth_header.empty() || !auth_header.starts_with("Bearer ")) {
             res.code = 401;
+            res.body = std::string("Unauthorized: You must login before accessing this endpoint");
             res.end();
             return;
         }
@@ -475,6 +481,7 @@ struct AuthMiddleware {
             auto decoded = jwt::decode(token);
             if (!auth_manager.verifyToken(token)) {
                 res.code = 401;
+                res.body = std::string("Unauthorized: You must login before accessing this endpoint");
                 res.end();
                 return;
             }
@@ -484,6 +491,7 @@ struct AuthMiddleware {
             ctx.email = decoded.get_payload_claim("email").as_string();
         } catch (const std::exception&) {
             res.code = 401;
+            res.body = std::string("Unauthorized: You must login before accessing this endpoint");
             res.end();
             return;
         }
