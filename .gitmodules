@@ -10,3 +10,6 @@
 [submodule "libs/libbcrypt"]
 	path = libs/libbcrypt
 	url = https://github.com/trusch/libbcrypt
+[submodule "libs/CPP-SMTPClient-library"]
+	path = libs/CPP-SMTPClient-library
+	url = git@github.com:jeremydumais/CPP-SMTPClient-library.git
